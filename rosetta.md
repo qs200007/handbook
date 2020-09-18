@@ -97,7 +97,7 @@ qsub -q honda script.sh
 如果你想要让十个核停止2min，你可以写如下的脚本：
 
 ```
-#!/usr/bin
+#!/usr/bash
 #$ -N qzm
 #$ -V
 #$ -m ea
@@ -161,7 +161,7 @@ qstat
 比如，我可以写脚本**rosetta_script.sh**：
 
 ```
-#!/usr/bin
+#!/usr/bash
 #$ -N qzm
 #$ -V
 #$ -m ea
@@ -201,3 +201,298 @@ qsub -q honda rosetta_script.sh
 **参考：**
 
 <https://www.rosettacommons.org/demos/latest/tutorials/input_and_output/input_and_output>
+
+如上所述，每次我们可以只改**rosetta_sript.sh**中的那一行来跑rosetta程序。
+
+第一个：
+
+```
+$REOSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:s input_files/1qys.pdb
+```
+
+输入一个pdb文件 **-in:file:s**
+
+第二个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:l input_files/pdblist
+```
+
+输入多个pdb文件 **-in:file:l**
+
+pdblist有：
+
+```
+input_files/1qys.pdb
+input_files/1ubq.pdb
+```
+
+第三个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:silent input_files/1qys_10.o
+```
+
+输入silent文件 **-in:file:silent**
+
+第四个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:s input_files/from_rcsb/3tdm.pdb -ignore_unrecognized_res
+```
+
+第五个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:s input_files/1qys_zero_occ.pdb -ignore_zero_occupancy false
+```
+
+input的pdb需要先relax。写文件flag_input_relax：
+
+```
+-nstruct 2
+
+-relax:constrain_relax_to_start_coords
+-relax:ramp_constraints false
+
+-ex1
+-ex2
+
+-use_input_sc
+-flip_HNQ
+-no_optH false
+```
+
+第六个：
+
+```
+$ROSETTA3/bin/relax.default.linuxgccrelease -in:file:s input_files/from_rcsb/1qys.pdb @flag_input_relax
+```
+
+**@flag_input_relax** 相当于把文件中的每一行当参数传过去
+
+第七个：
+
+```
+$ROSETTA3/bin/relax.default.linuxgccrelease -in:path input_files -in:file:s 4eq1.pdb -constraints:cst_fa_file constrained_atompairs.cst -ignore_unrecognized_res @flag_input_relax
+```
+
+第八个：
+
+```
+$ROSETTA3/bin/score.default.linuxgccrelease -in:file:s input_files/1qys.pdb -in:file:native input_files/from_rcsb/1qys.pdb -ignore_waters
+```
+
+第九个：
+
+```
+grep '^SCORE' input_files/1qys_10.o > output_files/1qys_silent_scores.sc
+sort -k1,1 -k2n output_files/1qys_silent_scores.sc
+$ROSETTA3/bin/extract_pdbs.default.linuxgccrelease -in:file:silent input_files/1qys_10.o -in:file:tagfile input_files/1qys_top3.tag
+```
+
+第十个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:s input_files/1qys.pdb -out:file:scorefile_format json
+```
+
+第十一个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:s input_files/1qys.pdb -out:pdb -out:prefix pre_ -out:suffix _suf
+```
+
+第十二个：
+
+```
+$ROSETTA3/bin/score_jd2.default.linuxgccrelease -in:file:s input_files/1qys.pdb -out:level 400
+```
+
+## 3 Full Atom Representation vs Centroid Representation
+
+在centroid representation中，每一个residue变成N，CA，C，O，H，CB，CEN。用CEN这一个pseudo atom和CB代替residue的side chain。
+
+转化centroid representation和full atom representaion需要用到XML script。
+
+基本script.xml：
+
+```
+<ROSETTASCRIPT>
+	<SCOREFXNS>
+	</SCOREFXNS>
+	<RESIDUE_SELECTORS>
+	</RESIDUE_SELECTORS>
+	<PACKER_PALETTES>
+	</PACKER_PALETTES>
+	<TASKOPERATIONS>
+	</TASKOPERATIONS>
+	<MOVE_MAP_FACTORIES>
+	</MOVE_MAP_FACTORIES>
+	<SIMPLE_METRICS>
+	</SIMPLE_METRICS>
+	<FILTERS>
+	</FILTERS>
+	<MOVERS>
+	</MOVERS>
+	<PROTOCOL>
+	</PROTOCOL>
+	<OUTPUT>
+	</OUTPUT>
+</ROSETTASCRIPT>
+```
+
+用法：
+
+```
+-parser:protocol script.xml
+```
+
+---
+
+#### 把centroid转化为full atom。
+
+写**cen_to_fa.xml**：
+
+```
+<ROSETTASCRIPTS>
+	<SCOREFXNS>
+	</SCOREFXNS>
+	<FILTERS>
+	</FILTERS>
+	<MOVERS>
+		<SwitchResidueTypeSetMover name="switch_representation" set="fa_standard" />
+	</MOVERS>
+	<APPLY_TO_POSE>
+	</APPLY_TO_POSE>
+	<PROTOCOLS>
+		<Add mover="switch_representation">
+	</PROTOCOLS>
+</ROSETTASCRIPTS>
+```
+
+写**flag_from_cen_to_fa**：
+
+```
+-parser:protocol /home/zmqiu/work/rosetta_tutorial/centroid/cen_to_fa.xml
+
+-score:weights cen_std_smooth
+-in:file:s /home/zmqiu/work/rosetta_tutorial/centroid/input_files/1qys_centroid.pdb
+
+#-out:path:pdb output_files
+#-out:file:scorefile /dev/null  #to prevent output of the score file
+```
+
+写**rosetta_script.sh**：
+
+```
+#!/usr/bash
+#$ -N qzm
+#$ -V
+#$ -m ea
+#$ -M qiuzeming@nibs.ac.cn
+#$ -t 1
+#$ -tc 50
+#$ -wd /home/zmqiu/work/rosetta_tutorial/centroid/result
+
+echo "running~~"
+
+IN_DIR=/home/zmqiu/work/rosetta_tutorial/centroid
+ROSETTA3=/home/soft/rosetta/gcc8_2019.35/main/source
+ROSETTA3_DB=/home/soft/rosetta/gcc8_2019.35/main/database
+ROSETTA3_TOOLS=/home/soft/rosetta/gcc8_2019.35/tools
+
+$ROSETTA3/bin/rosetta_scripts.linuxgccrelease @$IN_DIR/flag_from_cen_to_fa
+echo "ending"
+```
+
+运行：
+
+```
+qsub -q honda rosetta_script.sh
+```
+
+相当于：**rosetta_seript.sh ===>> flag_from_cen_to_fa ===>> cen_to_fa.xml**
+
+#### 把full atom转化为centroid。
+
+写fa_to_centroid.xml：
+
+```
+<ROSETTASCRIPTS>
+	<SCOREFXNS>
+	</SCOREFXNS>
+	<FILTERS>
+	</FILTERS>
+	<MOVERS>
+		<SwitchResidueTypeSetMover name="switch_fa_to_centroid" set="centroid" />
+	</MOVERS>
+	<APPLY_TO_POSE>
+	</APPLY_TO_POSE>
+	<PROTOCOlS>
+		<Add mover="switch_fa_to_centroid" />
+	</PROTOCOLS>
+</ROSETTASCRIPTS>
+```
+
+写flag_from_fa_to_centroid：
+
+```
+-in:file:s /home/zmqiu/work/rosetta_tutorial/centroid/input_files/1qys.pdb
+
+-score:weights cen_std_smooth
+-nstruct 10                     #number of output structures
+-parser:protocol /home/zmqiu/work/rosetta_tutorial/centroid/fa_to_cen.xml
+
+#-out:path:all output_files
+#-out:file:scorefile /dev/null  #to prevent output of the score file
+```
+
+写rosetta_script.sh：
+
+```
+#!/usr/bash
+#$ -N qzm
+#$ -V
+#$ -m ea
+#$ -M qiuzeming@nibs.ac.cn
+#$ -t 1
+#$ -tc 20
+#$ -wd /home/zmqiu/work/rosetta_tutorial/centroid/result
+
+echo "running"
+
+IN_DIR=/home/zmqiu/work/rosetta_tutorial/centroid
+ROSETTA3=/home/soft/rosetta/gcc8_2019.35/main/source
+
+$ROSETTA3/bin/rosetta_scripts.linuxgccrelease @$IN_DIR/flag_from_fa_to_cen
+```
+
+提交任务：
+
+```
+asub -q honda rosetta_script.sh
+```
+
+得到的十个结构都是一样的。都是**N，CA，C，O，CB，H，CEN**。
+
+```
+ATOM      1  N   ASP A   3      -4.524  18.589  17.199  1.00  0.00           N  
+ATOM      2  CA  ASP A   3      -3.055  18.336  17.160  1.00  0.00           C  
+ATOM      3  C   ASP A   3      -2.676  17.087  16.375  1.00  0.00           C  
+ATOM      4  O   ASP A   3      -3.539  16.391  15.835  1.00  0.00           O  
+ATOM      5  CB  ASP A   3      -2.496  18.220  18.580  1.00  0.00           C  
+ATOM      6  CEN ASP A   3      -2.022  18.783  19.285  1.00  0.00           X  
+ATOM      7  H   ASP A   3      -5.003  18.619  18.076  1.00  0.00           H  
+ATOM      8  N   ILE A   4      -1.373  16.806  16.326  1.00  0.00           N  
+ATOM      9  CA  ILE A   4      -0.849  15.654  15.587  1.00  0.00           C  
+ATOM     10  C   ILE A   4      -0.739  14.399  16.448  1.00  0.00           C  
+ATOM     11  O   ILE A   4       0.070  14.317  17.374  1.00  0.00           O  
+ATOM     12  CB  ILE A   4       0.535  15.962  14.987  1.00  0.00           C  
+ATOM     13  CEN ILE A   4       1.064  16.400  14.140  1.00  0.00           X  
+ATOM     14  H   ILE A   4      -0.728  17.411  16.816  1.00  0.00           H
+```
+
+---
+
+## 4 The Paker
