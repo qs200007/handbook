@@ -471,7 +471,7 @@ $ROSETTA3/bin/rosetta_scripts.linuxgccrelease @$IN_DIR/flag_from_fa_to_cen
 提交任务：
 
 ```
-asub -q honda rosetta_script.sh
+qsub -q honda rosetta_script.sh
 ```
 
 得到的十个结构都是一样的。都是**N，CA，C，O，CB，H，CEN**。
@@ -496,3 +496,17 @@ ATOM     14  H   ILE A   4      -0.728  17.411  16.816  1.00  0.00           H
 ---
 
 ## 4 The Paker
+
+from <https://www.rosettacommons.org/demos/latest/tutorials/Optimizing_Sidechains_The_Packer/Optimizing_Sidechains_The_Packer>：
+
+>#### The problem of optimizing side-chains
+>
+>A common task in Rosetta is the optimization of side-chains. We might think about the problem as follows: let's suppose that we have a structure (which we will call the **pose**) with a **fixed backbone conformation**. At each **position** in the structure, we have a list of discrete possibilities for the **side-chain**, which we call **rotamers**, where a rotamer is a particular conformation of a particular residue type's side-chain. We would like to **select one rotamer for each position such that the combination of rotamers represents the lowest-energy solution**. This is the problem solved by the packer.
+>
+>This problem is actually quite a difficult one: given N possibilities at each position in an M-residue protein, there are N to the power of M possibilities. This rapidly becomes an astronomical number of possibilities -- for example, 3 rotamers at each of 100 positions would be about 5x(10^47) possible combinations. This makes exhaustive enumeration（详尽的枚举） impossible. To solve this problem, the packer uses Monte Carlo methods (discussed in detail further on). This means that the packer is stochastic, that it never comes close to exhaustively exploring the search space in any but the smallest of packer problems, and that the solution returned, while likely to be a **good solution**, is not guaranteed to be the **best solution**.
+>
+>**Repeated packer runs are likely to yield a variety of similar solutions near the global optimum; none of these will necessarily be the best possible solution.**
+>
+>**The packer is therefore a powerful tool (and, indeed, the primary tool in Rosetta) for designing amino acid sequences.**
+>
+>
