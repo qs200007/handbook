@@ -471,7 +471,7 @@ $ROSETTA3/bin/rosetta_scripts.linuxgccrelease @$IN_DIR/flag_from_fa_to_cen
 提交任务：
 
 ```
-qsub -q honda rosetta_script.sh
+asub -q honda rosetta_script.sh
 ```
 
 得到的十个结构都是一样的。都是**N，CA，C，O，CB，H，CEN**。
@@ -508,5 +508,86 @@ from <https://www.rosettacommons.org/demos/latest/tutorials/Optimizing_Sidechain
 >**Repeated packer runs are likely to yield a variety of similar solutions near the global optimum; none of these will necessarily be the best possible solution.**
 >
 >**The packer is therefore a powerful tool (and, indeed, the primary tool in Rosetta) for designing amino acid sequences.**
+
+protein ===>> backbone + sidechain
+
+sidechain ===>>amino acid + rotamer
+
+```
+the backbone is fixed
+for position in sidechain:
+	choose an amino acid for this position
+	choose a rotamer for this amino acid
+```
+
+我们先用**fixbb**来做实验。（fixed back-bone）
+
+```
+rosetta/rosetta_source/bin/fixbb.default.linuxgccrelease -in:file:s 1l2y.pdb -resfile resfile.txt
+```
+
+其中**resfile.txt**：
+
+```
+start
+    1 A PIKAA NT
+    2 A PIKAA LA
+    3 A PIKAA YL
+    4 A PIKAA IL
+    5 A PIKAA QL
+    6 A NATAA
+    7 A NATRO
+    8 A PIKAA KL
+    9 A PIKAA DL
+   10 A NATRO
+   11 A NATRO
+   12 A PIKAA PS
+   13 A PIKAA SK
+   14 A PIKAA SA
+   15 A NATRO
+   16 A PIKAA RM
+   17 A PIKAA PS
+   18 A PIKAA PM
+   19 A PIKAA PI
+   20 A PIKAA SG
+```
+
+其中：
+
+| Name  | description                                                 |
+| ----- | ----------------------------------------------------------- |
+| NATRO | natural rotamer. Nothing change.                            |
+| NATAA | natural animo acid. Only change rotamer for this animo acid |
+| PIKAA | pick animo acid.                                            |
+| ALLAA | all animo acid. Change amino acid.                          |
+
+packer是rosetta的核心之一，官网上有对它非常好的描述：<https://www.rosettacommons.org/demos/latest/tutorials/Optimizing_Sidechains_The_Packer/Optimizing_Sidechains_The_Packer>
+
+> ##  How the packer algorithm works under the hood (for advanced users)
 >
+> While a detailed understanding of the workings of the packer is not a strict requirement to use Rosetta, having some idea of what's going on under the hood can help a user to use his or her tools more effectively. To understand the packer, we must first understand the concept of **Monte Carlo methods（蒙特卡洛方法）**.
 >
+> Broadly speaking, a Monte Carlo method is any method by which one attempts to solve an optimization problem using random or stochastic moves. In practice, most Monte Carlo methods in Rosetta make use of the **Metropolis-Hastings algorithm**, involving iterated steps in which one makes a random move that alters a pose in some way, considers the **change in the energy of a pose** as a result of the move, and then accepts or rejects that move based on a rule called the **Metropolis Criterion**. The Metropolis Criterion states that if the move results in a decrease in energy, it is always accepted, while if it results in an increase in energy, it is accepted with probability equal to **e-ΔE/(kbT)**. Practically, speaking, this means that the larger the increase in energy, the lower the likelihood of accepting the move, while at the same time allowing small increases in energy.
+>
+> The Metropolis Criterion contains a "temperature factor", **kbT**, that determines how the probability of rejecting a move that increases the energy scales with the magnitude of the increase. Large values of kBT allow moves that result in large increases in energy to be accepted frequently, while small values would only permit moves that result in small increases in energy to be accepted. While Monte Carlo searches can be carried out with fixed, arbitrarily-selected values of kBT, it is often advantageous to vary this value over the course of a simulation, using **high values early** on to permit the trajectory to climb barriers and **escape local energy minima**, and then lowering it later in a simulation so that the trajectory "drills down" to the **bottom of the lowest-energy well** that it has found. Often, many cycles of ramping kBT up and down can allow more complete exploration of the space. Monte Carlo approaches involving ramping of the kBT term are broadly called **simulated annealing methods**. Such methods often also involve conditional back-stepping to earlier parts of trajectories to escape dead ends, and other adaptive behaviours that increase the probability of converging to the lowest-energy state.
+>
+> With this understanding of general Monte Carlo and simulated annealing approaches in hand, let's look at what the packer does. A typical packer run consists of three steps:
+>
+> 1. TaskOperations are evaluated, and the packer makes a list of possible rotamers at each position.
+> 2. The packer carries out a precomputation in which all possible pairs of interacting rotamers are enumerated and their pairwise interaction energies are calculated and stored.
+> 3. The packer carries out a simulated annealing-based search of rotamer combinations, in which moves consist of randomly selecting a position and replacing the current rotamer at that position with a randomly-selected rotamer from the allowed rotamers for that position. Simulated annealing requires rapid computation of the change in energy resulting from the move. Because all pairwise interaction energies are precomputed, determining the change in energy of the structure following such a substitution is extremely fast, since it depends only on the internal energies of the old and new rotamers and on their pairwise interaction energies with their neighbours in the pose. This allows the packer to evaluate hundreds of thousands or millions of moves in seconds, permitting very long trajectories to be carried out very quickly.
+>
+> There are variants on the above behaviour in which only parts of the interaction network are precomputed and other parts are computed on the fly (what `-linmem_ig` does), but this general scheme is fairly representative. Note that the above depends heavily on being able to rapidly update the energy as moves are considered:
+>
+> **In order to be compatible with the packer, an energy term must either be residue-level pairwise-decomposable, or must otherwise be very fast to compute and update as rotamer substitutions are considered.**
+
+参考：
+
+<https://en.wikipedia.org/wiki/Simulated_annealing>
+
+<https://blog.csdn.net/weixin_42398658/article/details/84031235>
+
+<https://www.cnblogs.com/RyanXing/p/9469338.html>
+
+**世有不可为，知耻而后勇**
+
